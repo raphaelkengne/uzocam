@@ -35,9 +35,49 @@
     });
   }
 
-  // ---------- Product filters ----------
+  // ---------- Product filters + search ----------
   const filterBtns = document.querySelectorAll('.filter-btn');
   const productCards = document.querySelectorAll('.product-card');
+  const searchInput = document.getElementById('productSearch');
+  const searchClear = document.getElementById('searchClear');
+  const searchCount = document.getElementById('searchCount');
+  let currentFilter = 'all';
+  let currentQuery = '';
+
+  function normalize(str) {
+    return (str || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  function cardMatches(card, filter, query) {
+    const catOk = filter === 'all' || card.dataset.category === filter;
+    if (!catOk) return false;
+    if (!query) return true;
+    const title = card.querySelector('h3')?.textContent || '';
+    const desc = card.querySelector('p')?.textContent || '';
+    const keywords = card.dataset.keywords || '';
+    const haystack = normalize(title + ' ' + desc + ' ' + keywords);
+    return query.split(/\s+/).every(term => haystack.includes(term));
+  }
+
+  function applyFilters() {
+    let visible = 0;
+    productCards.forEach(card => {
+      const show = cardMatches(card, currentFilter, currentQuery);
+      card.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+    if (searchCount) {
+      if (currentQuery || currentFilter !== 'all') {
+        searchCount.textContent = visible === 0
+          ? 'Aucun produit trouvé'
+          : visible + ' produit' + (visible > 1 ? 's' : '') + ' trouvé' + (visible > 1 ? 's' : '');
+      } else {
+        searchCount.textContent = '';
+      }
+    }
+  }
 
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -47,17 +87,27 @@
       });
       btn.classList.add('active');
       btn.setAttribute('aria-selected', 'true');
-
-      const filter = btn.dataset.filter;
-      productCards.forEach(card => {
-        if (filter === 'all' || card.dataset.category === filter) {
-          card.classList.remove('hidden');
-        } else {
-          card.classList.add('hidden');
-        }
-      });
+      currentFilter = btn.dataset.filter;
+      applyFilters();
     });
   });
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      currentQuery = normalize(searchInput.value);
+      if (searchClear) searchClear.hidden = !searchInput.value;
+      applyFilters();
+    });
+  }
+  if (searchClear) {
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      currentQuery = '';
+      searchClear.hidden = true;
+      searchInput.focus();
+      applyFilters();
+    });
+  }
 
   // ---------- Contact form (client-side) ----------
   const form = document.getElementById('contactForm');
@@ -242,5 +292,32 @@
   resizeCanvas();
   loadImages();
   updateSequence();
+
+  // ---------- Scroll reveal + card entrance animations ----------
+  const revealEls = document.querySelectorAll('.service-card, .product-card, .section-header, .about-content, .about-visual, .contact-item, .contact-form-wrap');
+
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, idx) => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          // Stagger based on position in parent
+          const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
+          const index = siblings.indexOf(el);
+          el.style.animationDelay = (index * 0.08) + 's';
+          el.classList.add('animate-in');
+          observer.unobserve(el);
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -40px 0px'
+    });
+
+    revealEls.forEach(el => observer.observe(el));
+  } else {
+    // Fallback: show everything
+    revealEls.forEach(el => el.classList.add('animate-in'));
+  }
 
 })();
